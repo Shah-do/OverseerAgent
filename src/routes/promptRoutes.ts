@@ -24,23 +24,29 @@ router.post("/prompt", async (c) => {
     }
 
     const matchingType = searchResults.filter(r => r.mediaType === intent.mediaType);
-    const result = intent.year
+    if (matchingType.length === 0) {
+      return c.json({ message: "Sorry, I couldn't find that media." }, 404);
+    }
+
+    // Treat year as a helpful hint, not a hard requirement. Prefer an exact
+    // year match when available, but fall back to Seerr's best-ranked result
+    // so a missing/incomplete release date never blocks a normal title search.
+    const yearMatch = intent.year
       ? matchingType.find(r => {
           const date = r.releaseDate || r.firstAirDate;
           return date && Number(date.slice(0, 4)) === intent.year;
         })
-      : matchingType[0];
+      : undefined;
+    const result = yearMatch ?? matchingType[0];
 
-    if (intent.year && !result) {
-      console.warn("⚠️ No Seerr result matched requested year:", {
+    if (intent.year && !yearMatch) {
+      console.warn("⚠️ No exact year match in Seerr results; using its top result:", {
         title: intent.title,
         year: intent.year,
         mediaType: intent.mediaType,
+        selectedDate: result.releaseDate || result.firstAirDate,
       });
-      return c.json({ message: `No matching ${intent.mediaType} found for "${intent.title}" (${intent.year}). Try including the title and year in your request.` }, 404);
     }
-
-    if (!result) return c.json({ message: "Sorry, I couldn't find that media." }, 404);
 
 
     if (result.mediaInfo && result.mediaInfo.status) {
