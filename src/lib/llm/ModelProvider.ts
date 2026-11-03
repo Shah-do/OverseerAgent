@@ -5,6 +5,7 @@
 
 export interface MediaIntent {
   title: string;
+  year?: number;
   mediaType: "movie" | "tv";
   seasons?: "all" | number[];
   profile: number;
@@ -40,11 +41,18 @@ class ModelProvider {
 
 Analyze the prompt and return a JSON object with the following structure:
 {
-  "title": "exact title of the movie/show",
+  "title": "exact title of the movie/show, without actor names or year",
+  "year": 2014 (optional release year, only when explicitly stated or confidently identifiable from the user clues),
   "mediaType": "movie" or "tv",
   "seasons": "all" or [1,2,3] (array of season numbers, only for TV shows),
   "profile": number (profile id from the provided profile map; the LLM will be given a profile map to choose from if none is specified return default profile)
 }
+
+Disambiguation rules:
+- Use actor/director names, language, country, and other clues to identify the intended title, but keep those clues out of the title field.
+- If the user gives a year, return it in the optional year field. If a well-known title is unambiguous from the clues, you may include its known release year; otherwise omit year rather than guessing.
+- Example: "Bang Bang! with Hrithik Roshan, the 2014 movie" → {"title":"Bang Bang!","year":2014,"mediaType":"movie","profile":6}.
+- Never choose a different work just because it has a similar title.
 
 Examples:
 - "I want to watch Breaking Bad season 1" → {"title": "Breaking Bad", "mediaType": "tv", "seasons": [1], "profile": 6};
