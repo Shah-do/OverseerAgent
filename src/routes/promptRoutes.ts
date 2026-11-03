@@ -23,7 +23,22 @@ router.post("/prompt", async (c) => {
       return c.json({ message: "Media not found" }, 404);
     }
 
-    const result = searchResults.find(r => (r.mediaType) === intent.mediaType);
+    const matchingType = searchResults.filter(r => r.mediaType === intent.mediaType);
+    const result = intent.year
+      ? matchingType.find(r => {
+          const date = r.releaseDate || r.firstAirDate;
+          return date && Number(date.slice(0, 4)) === intent.year;
+        })
+      : matchingType[0];
+
+    if (intent.year && !result) {
+      console.warn("⚠️ No Seerr result matched requested year:", {
+        title: intent.title,
+        year: intent.year,
+        mediaType: intent.mediaType,
+      });
+      return c.json({ message: `No matching ${intent.mediaType} found for "${intent.title}" (${intent.year}). Try including the title and year in your request.` }, 404);
+    }
 
     if (!result) return c.json({ message: "Sorry, I couldn't find that media." }, 404);
 
