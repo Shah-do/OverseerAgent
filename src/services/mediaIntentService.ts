@@ -2,6 +2,7 @@ import { invokeChatModel } from "../lib/llm/index.js";
 
 export interface MediaIntent {
   title: string;
+  year?: number;
   mediaType: "movie" | "tv";
   seasons?: "all" | number[];
   profile: number;
