@@ -1,0 +1,9 @@
+services:
+  overseeragent:
+    image: ghcr.io/shah-do/overseeragent:latest
+    container_name: overseeragent
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${AGENT_PORT:-4000}:4000"
