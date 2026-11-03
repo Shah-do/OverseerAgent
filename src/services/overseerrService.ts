@@ -5,8 +5,14 @@ import { MediaIntent } from './mediaIntentService.js';
 export interface OverseerrSearchResult {
   id: number;
   mediaType?: string;
+  title?: string;
+  name?: string;
+  originalTitle?: string;
+  originalName?: string;
   releaseDate?: string;
   firstAirDate?: string;
+  popularity?: number;
+  voteAverage?: number;
   mediaInfo?: {
     status?: number;
     seasons?: { seasonNumber: number; status?: number }[];
@@ -28,25 +34,71 @@ function encodeQueryValue(value: string): string {
   );
 }
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+function isRetryableSearchError(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const status = err.response?.status;
+  return !status || status === 429 || status >= 500;
+}
+
+/**
+ * Seerr's search index can briefly return an empty result set immediately
+ * after media is added. Retry empty responses as well as transient API errors.
+ * Do not retry authentication/validation errors (4xx other than 429).
+ */
 export async function searchOverseerr(title: string): Promise<OverseerrSearchResult[]> {
-  try {
-    const query = encodeQueryValue(title);
-    const url = `${OVERSEERR_URL}/api/v1/search?query=${query}`;
-    console.log('🔍 Searching Seerr for:', title);
-    const res = await axios.get(url, { headers: overseerrHeaders });
-    return (res.data?.results ?? []) as OverseerrSearchResult[];
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
+  const query = encodeQueryValue(title);
+  const url = `${OVERSEERR_URL}/api/v1/search?query=${query}`;
+  const delays = [500, 1200, 2500];
+  let lastError: unknown;
+
+  console.log('🔍 Searching Seerr for:', title);
+
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const res = await axios.get(url, {
+        headers: overseerrHeaders,
+        timeout: 15000,
+      });
+      const results = (res.data?.results ?? []) as OverseerrSearchResult[];
+
+      if (results.length > 0) {
+        if (attempt > 0) console.log(`✅ Seerr search returned results on retry ${attempt}`);
+        return results;
+      }
+
+      console.warn(`⚠️ Seerr returned zero results (attempt ${attempt + 1}/${delays.length + 1}) for:`, title);
+      if (attempt === delays.length) return [];
+    } catch (err: unknown) {
+      lastError = err;
+      if (!isRetryableSearchError(err) || attempt === delays.length) break;
+
+      if (axios.isAxiosError(err)) {
+        console.warn('⚠️ Transient Seerr search error; retrying:', {
+          status: err.response?.status,
+          attempt: attempt + 1,
+        });
+      }
+    }
+
+    await delay(delays[attempt]);
+  }
+
+  if (lastError) {
+    if (axios.isAxiosError(lastError)) {
       console.error('❌ Seerr search failed:', {
-        status: err.response?.status,
-        data: err.response?.data,
-        url: err.config?.url,
+        status: lastError.response?.status,
+        data: lastError.response?.data,
+        url: lastError.config?.url,
       });
     } else {
-      console.error('❌ Seerr search failed:', err instanceof Error ? err.message : String(err));
+      console.error('❌ Seerr search failed:', lastError instanceof Error ? lastError.message : String(lastError));
     }
     throw new Error('Failed to search Overseerr');
   }
+
+  return [];
 }
 
 export async function requestMedia(intent: MediaIntent, mediaId: number): Promise<unknown> {
@@ -88,6 +140,6 @@ export async function requestMedia(intent: MediaIntent, mediaId: number): Promis
     } else {
       console.error('❌ Seerr request failed:', err instanceof Error ? err.message : String(err));
     }
-    throw new Error('Failed to request Overseerr');
+    throw new Error('Failed to request media');
   }
 }
