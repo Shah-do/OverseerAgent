@@ -5,6 +5,8 @@ import { MediaIntent } from './mediaIntentService.js';
 export interface OverseerrSearchResult {
   id: number;
   mediaType?: string;
+  releaseDate?: string;
+  firstAirDate?: string;
   mediaInfo?: {
     status?: number;
     seasons?: { seasonNumber: number; status?: number }[];
