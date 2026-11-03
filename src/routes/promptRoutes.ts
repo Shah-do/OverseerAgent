@@ -135,7 +135,7 @@ router.post("/prompt", async (c) => {
     if (err instanceof Error) {
       if (err.message === "Failed to extract media intent" ||
           err.message === "Failed to search Overseerr" ||
-          err.message === "Failed to request Overseerr") {
+          err.message === "Failed to request media") {
         return c.json({ message: err.message }, 500);
       }
     }
